@@ -7,6 +7,9 @@ from sklearn.metrics import confusion_matrix
 import os
 from sklearn.metrics import classification_report
 import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.multiclass import OneVsOneClassifier
+from sklearn.svm import LinearSVC
 #get the samples between each start and end
 def event_codes(events):
         samples=[]
@@ -65,7 +68,7 @@ def fft_filter(eeg,samples):
                         psd = []
                         for x in range(1,mid_point):
                                 #mprint("at freq " , freq[x] ," and " ,  freq[-x])
-                                psd.append( (np.abs(Ts[x])**2) + (np.abs(Ts[-x]**2)) )
+                                psd.append( ((np.abs(Ts[x])**2) + (np.abs(Ts[-x]**2))) )
                         psds.append(psd)
 
         plt.figure(3)
@@ -76,47 +79,25 @@ def fft_filter(eeg,samples):
         for signal in signals_fft:
                 plt.plot(signal)
         #print(freqences)
+        print("............",len(freqences[0]))
+        print("............",len(psds[0]))
 
-        print(len(psds))
-
+        
         '''
-        #this is the sum of all the psd of all the 14 signals 
-        psds_sum = []
-        for i in range(0,12):   #change the 13 to 12 based on the file
-                period=[0] * 5
-                for j in range(0,14):  
-                        outputs = fft_helper(psds[(i+(j*12))],freqences[0])     #change the 13 to 12 based on the file
-                        period = [x + y for x, y in zip(period, outputs)]
-                psds_sum.append(period)
-
-        print(psds_sum)
-        for i in range (0,12):  #change the 13 to 12 based on the file
-                plt.figure(8+i)
-                plt.plot([1,2,3,4,5],psds_sum[i])
-        '''
-
-
         #this is signal O1 in index 6 almost all the values comes right
         o1_output=[]
         for i in range (0,num_trials):  #replace the 13 to 12 based on the file
                 outputs = fft_helper(psds[(0*num_trials)+i],freqences[0]) #replace the 12 to 13 or 13 to 12  based on the file
                 o1_output.append(outputs)
-        '''        
-        for i in range (0,12):
-                plt.figure(8+i)
-                plt.plot([1,2,3,4,5],o2_output[i])
         '''
-        
-        
+        '''
         #this is signal O2 in index 7 almost all the values comes right
         o2_output=[]
         for i in range (0,num_trials):  #replace the 13 to 12 based on the file
                 outputs = fft_helper(psds[(1*num_trials)+i],freqences[0]) #replace the 12 to 13 or 13 to 12  based on the file
                 o2_output.append(outputs)
-        '''    
-        for i in range (0,num_trials):
-                plt.figure(8+i)
-                plt.plot([1,2,3,4,5],o2_output[i])
+        '''
+
         '''
         conf_matrices=[]
         O1_labels = dominant_freq( o1_output,num_trials)
@@ -126,12 +107,12 @@ def fft_filter(eeg,samples):
         O2_labels = dominant_freq( o2_output,num_trials)
         O2_conf = conf_matrix(O2_labels,num_trials)
         conf_matrices.append(O2_conf)
-        
+        '''
 
         #print(conf_matrices)
         #print()
 
-        return(conf_matrices)
+        return(psds)
 
 
 def fft_helper(psd,freqs):
@@ -152,7 +133,8 @@ def fft_helper(psd,freqs):
                                                 index +=1
                                 else:
                                         break
-                        sum_psd = sum_psd + psd[index-1]
+                        
+                        sum_psd = sum_psd + max (psd[index-1],psd[index-2],psd[index])
                         #print(psd[index], " of frequencey ", (default_freqs[i])*j)
                         index=0
                 output.append(sum_psd)
@@ -181,14 +163,15 @@ def conf_matrix(y_pred,num_trials):
 
 
 
-conf_matrices=[[[0,0,0,0,0]]*5,[[0,0,0,0,0]]*5]
-print(conf_matrices)
+O1_trials=[]
+O2_tirals=[]
+
 i=0
-for filename in os.listdir('EEG-SSVEP-Experiment3'):
+for filename in os.listdir('EEG-SSVEP-Experiment3/1'):
 
     if filename.endswith(".mat") : 
         i+=1
-        curr_file = os.path.join('EEG-SSVEP-Experiment3', filename)
+        curr_file = os.path.join('EEG-SSVEP-Experiment3/1', filename)
         print(curr_file)
         data = sio.loadmat(curr_file)
         eeg = data['eeg']
@@ -198,22 +181,33 @@ for filename in os.listdir('EEG-SSVEP-Experiment3'):
 
         samples = event_codes(events)
         print("effective samples",len(samples))
-
+        trials= len(samples)//2
         new_eeg = preprocessing(eeg)
         output = fft_filter(new_eeg,samples)
-        conf_matrices[0] = conf_matrices[0] + output[0]
-        conf_matrices[1] = conf_matrices[1] + output[1]
-        print(conf_matrices)
+        O1_trials+=output[0:trials]
+        O2_tirals+=output[trials:]
+
 
         continue
     else:
         continue
-plt.figure(6)
-sns.heatmap(conf_matrices[0], annot= True, fmt='d')
-plt.figure(5)
-sns.heatmap(conf_matrices[1], annot= True, fmt='d')
-print (i )
+X = O2_tirals
+y =  [4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3, 4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5]*5
 
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 0)
+
+print (len(X_test))
+print(len(O1_trials))
+print(len(O2_tirals))
+
+classifier = OneVsOneClassifier(LinearSVC(random_state=0, max_iter=10000))
+classifier.fit(X_train,y_train)
+y_predict = classifier.predict(X_test)
+print(y_test)
+print(y_predict)
+
+plt.figure(6)
+sns.heatmap(confusion_matrix(y_test, y_predict), annot= True, fmt='d')
 '''
 data = sio.loadmat('EEG-SSVEP-Experiment3/U001ai.mat')
 eeg = data['eeg']
