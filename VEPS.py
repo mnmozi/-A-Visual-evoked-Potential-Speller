@@ -9,7 +9,10 @@ from sklearn.metrics import classification_report
 import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.multiclass import OneVsOneClassifier
+from sklearn.multiclass import OutputCodeClassifier
 from sklearn.svm import LinearSVC
+from sklearn.ensemble import RandomForestClassifier
+
 #get the samples between each start and end
 def event_codes(events):
         samples=[]
@@ -164,14 +167,14 @@ def conf_matrix(y_pred,num_trials):
 
 
 O1_trials=[]
-O2_tirals=[]
+O2_trials=[]
 
 i=0
-for filename in os.listdir('EEG-SSVEP-Experiment3/1'):
+for filename in os.listdir('EEG-SSVEP-Experiment3/2'):
 
     if filename.endswith(".mat") : 
         i+=1
-        curr_file = os.path.join('EEG-SSVEP-Experiment3/1', filename)
+        curr_file = os.path.join('EEG-SSVEP-Experiment3/2', filename)
         print(curr_file)
         data = sio.loadmat(curr_file)
         eeg = data['eeg']
@@ -185,22 +188,23 @@ for filename in os.listdir('EEG-SSVEP-Experiment3/1'):
         new_eeg = preprocessing(eeg)
         output = fft_filter(new_eeg,samples)
         O1_trials+=output[0:trials]
-        O2_tirals+=output[trials:]
+        O2_trials+=output[trials:]
 
 
         continue
     else:
         continue
-X = O2_tirals
-y =  [4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3, 4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5]*5
+X = O2_trials
+y =  [4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5, 4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3]*5
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 0)
 
 print (len(X_test))
 print(len(O1_trials))
-print(len(O2_tirals))
+print(len(O2_trials))
 
-classifier = OneVsOneClassifier(LinearSVC(random_state=0, max_iter=10000))
+classifier = RandomForestClassifier(n_estimators=1000,n_jobs=2, random_state=0)
+
 classifier.fit(X_train,y_train)
 y_predict = classifier.predict(X_test)
 print(y_test)
@@ -208,6 +212,9 @@ print(y_predict)
 
 plt.figure(6)
 sns.heatmap(confusion_matrix(y_test, y_predict), annot= True, fmt='d')
+
+
+print(classifier.predict_proba(X_test)[0:10])
 '''
 data = sio.loadmat('EEG-SSVEP-Experiment3/U001ai.mat')
 eeg = data['eeg']
