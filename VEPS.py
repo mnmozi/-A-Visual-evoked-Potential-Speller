@@ -152,7 +152,8 @@ def fft_helper(psd,freqs):
                                                 index +=1
                                 else:
                                         break
-                        sum_psd = sum_psd + psd[index-1]
+                        #sum_psd = sum_psd + max (psd[index-2],psd[index-1],psd[index])                
+                        sum_psd = sum_psd + max (psd[index-3],psd[index-2],psd[index-1],psd[index],psd[index+1])
                         #print(psd[index], " of frequencey ", (default_freqs[i])*j)
                         index=0
                 output.append(sum_psd)
@@ -184,11 +185,11 @@ def conf_matrix(y_pred,num_trials):
 conf_matrices=[[[0,0,0,0,0]]*5,[[0,0,0,0,0]]*5]
 print(conf_matrices)
 i=0
-for filename in os.listdir('EEG-SSVEP-Experiment3'):
+for filename in os.listdir('EEG-SSVEP-Experiment3/7'):
 
     if filename.endswith(".mat") : 
         i+=1
-        curr_file = os.path.join('EEG-SSVEP-Experiment3', filename)
+        curr_file = os.path.join('EEG-SSVEP-Experiment3/7', filename)
         print(curr_file)
         data = sio.loadmat(curr_file)
         eeg = data['eeg']
