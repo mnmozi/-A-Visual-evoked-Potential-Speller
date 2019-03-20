@@ -36,6 +36,10 @@ def preprocessing(eeg):
                         eeg[i][j]=eeg[i][j]-avg[j]
 
 
+        for i in range (6,8):
+                sm=sum(eeg[i]) / len(eeg[i])
+                eeg[i] = [x - sm for x in eeg[i]]
+        
         return(eeg)
 
 
@@ -54,15 +58,16 @@ def fft_filter(eeg,samples):
                         number_of_samples = samples[j+1] - samples[j]
                         mid_point= number_of_samples//2
 
-                        print(samples[j] ,' to ', samples[j+1] )
+                        print(samples[j] ,' to ', samples[j+1] , " = ", number_of_samples)
 
                         signals.append( eeg[ i, samples[j]:(samples[j+1]) ])
                         Ts=np.fft.fft ( eeg[ i, samples[j]:(samples[j+1]) ])
                         freq= np.fft.fftfreq(number_of_samples,(1/128))
+
                         signals_fft.append(Ts)
                         freqences.append(freq)
-
                         psd = []
+                        
                         for x in range(1,mid_point):
                                 #mprint("at freq " , freq[x] ," and " ,  freq[-x])
                                 psd.append( (np.abs(Ts[x])**2) + (np.abs(Ts[-x]**2)) )
@@ -76,8 +81,9 @@ def fft_filter(eeg,samples):
         for signal in signals_fft:
                 plt.plot(signal)
         #print(freqences)
+        plt.figure(9)
+        plt.plot(psds[0])
 
-        print(len(psds))
 
         '''
         #this is the sum of all the psd of all the 14 signals 
@@ -96,7 +102,7 @@ def fft_filter(eeg,samples):
         '''
 
 
-        #this is signal O1 in index 6 almost all the values comes right
+        #this is signal O1 in index 6 
         o1_output=[]
         for i in range (0,num_trials):  #replace the 13 to 12 based on the file
                 outputs = fft_helper(psds[(0*num_trials)+i],freqences[0]) #replace the 12 to 13 or 13 to 12  based on the file
@@ -118,11 +124,12 @@ def fft_filter(eeg,samples):
                 plt.figure(8+i)
                 plt.plot([1,2,3,4,5],o2_output[i])
         '''
+        print("O1")
         conf_matrices=[]
         O1_labels = dominant_freq( o1_output,num_trials)
         O1_conf = conf_matrix(O1_labels,num_trials)
         conf_matrices.append(O1_conf)
-
+        print("O2")
         O2_labels = dominant_freq( o2_output,num_trials)
         O2_conf = conf_matrix(O2_labels,num_trials)
         conf_matrices.append(O2_conf)
@@ -135,28 +142,28 @@ def fft_filter(eeg,samples):
 
 
 def fft_helper(psd,freqs):
-        default_freqs= [12.0 , 10.0 , 8.6, 7.4 , 6.6]
+        default_freqs= [12.0 , 10.0 , 8.6, 7.6 , 6.6]
         output=[]
         #print(freqs)
         for i in range(0,5):
                 sum_psd=0
-                index =1
+                index =0
                 for j in range(1,4):
                         while (True):
-                                if(index < 640):
-                                        if( round(freqs[index],1) == round( ((default_freqs[i])*j),1)):
-                                                #print(freqs[index] , " equal ", (default_freqs[i])*j)
-                                                break
-                                        else:
-                                                #print(freqs[index] , " not equal ", (default_freqs[i])*j)
-                                                index +=1
-                                else:
+                                if( round(freqs[index],1) == round( ((default_freqs[i])*j),1)):
+                                        #print(freqs[index] , " equal ", (default_freqs[i])*j)
                                         break
-                        #sum_psd = sum_psd + max (psd[index-2],psd[index-1],psd[index])                
+                                else:
+                                        #print(freqs[index] , " not equal ", (default_freqs[i])*j)
+                                        index +=1
+                                             
                         sum_psd = sum_psd + max (psd[index-3],psd[index-2],psd[index-1],psd[index],psd[index+1])
-                        #print(psd[index], " of frequencey ", (default_freqs[i])*j)
+                        #print(psd[index-1], " of frequencey ", (default_freqs[i])*j)
                         index=0
+
                 output.append(sum_psd)
+                print(sum_psd)
+        print(output)        
         return (output)
 
 
@@ -165,6 +172,7 @@ def dominant_freq(pow_freq,num_trials):
         for i in range(num_trials):
                 curr_trial = pow_freq[i]
                 dominant_label = curr_trial.index(max(curr_trial)) + 1
+                print(dominant_label , " => ", curr_trial)
                 trial_output.append(dominant_label)
         return (trial_output)        
 
@@ -185,11 +193,11 @@ def conf_matrix(y_pred,num_trials):
 conf_matrices=[[[0,0,0,0,0]]*5,[[0,0,0,0,0]]*5]
 print(conf_matrices)
 i=0
-for filename in os.listdir('EEG-SSVEP-Experiment3/7'):
+for filename in os.listdir('EEG-SSVEP-Experiment3/y'):
 
     if filename.endswith(".mat") : 
         i+=1
-        curr_file = os.path.join('EEG-SSVEP-Experiment3/7', filename)
+        curr_file = os.path.join('EEG-SSVEP-Experiment3/y', filename)
         print(curr_file)
         data = sio.loadmat(curr_file)
         eeg = data['eeg']
@@ -209,50 +217,12 @@ for filename in os.listdir('EEG-SSVEP-Experiment3/7'):
         continue
     else:
         continue
+
 plt.figure(6)
 sns.heatmap(conf_matrices[0], annot= True, fmt='d')
 plt.figure(5)
 sns.heatmap(conf_matrices[1], annot= True, fmt='d')
-print (i )
-
-'''
-data = sio.loadmat('EEG-SSVEP-Experiment3/U001ai.mat')
-eeg = data['eeg']
-events = data['events']
-
-signals_num = len(eeg)-1
-
-#plotting the signals before preprocessing
-plt.figure(1)
-for x in range(signals_num):
-    plt.plot(eeg[x])
+print (i)
 
 
-samples = event_codes(events)
-print("effective samples",len(samples))
-
-
-
-
-new_eeg = preprocessing(eeg)
-
-#after preprocessing
-plt.figure(2)
-for x in range(signals_num):
-        # print (new_eeg[x])
-        plt.plot(new_eeg[x])
-
-#power spectral density
-psds = fft_filter(new_eeg,samples)
-#print(psds[0])
-#plt.figure(6)
-#for psd in psds:
-#plt.plot(psds[3])
-
-
-
-
-
-#plt.axis([0, 18000,0,30*10**4])
-'''
 plt.show()
