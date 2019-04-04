@@ -12,7 +12,7 @@ from sklearn.multiclass import OneVsOneClassifier
 from sklearn.multiclass import OutputCodeClassifier
 from sklearn.svm import LinearSVC
 from sklearn.ensemble import RandomForestClassifier
-
+from sklearn.decomposition import PCA
 #get the samples between each start and end
 def event_codes(events):
         samples=[]
@@ -72,7 +72,7 @@ def fft_filter(eeg,samples):
                         freqences.append(freq)
 
                         psd = []
-                        for x in range(35,185):
+                        for x in range(1,mid_point):
                                 #mprint("at freq " , freq[x] ," and " ,  freq[-x])
                                 psd.append( ((np.abs(Ts[x])**2) + (np.abs(Ts[-x]**2))) )
                         psds.append(psd)
@@ -89,29 +89,30 @@ def fft_filter(eeg,samples):
         print("............",len(psds[0]))
 
         
-        '''
+        
+        
         #this is signal O1 in index 6 almost all the values comes right
         o1_output=[]
-        for i in range (0,num_trials):  #replace the 13 to 12 based on the file
+        for i in range (0,num_trials): 
                 outputs = fft_helper(psds[(0*num_trials)+i],freqences[0]) 
                 o1_output.append(outputs)
         print(len(psds))
         print('o1 output is ',len(o1_output))
-        '''
+        
 
-        '''
+        
         #this is signal O2 in index 7 almost all the values comes right
         o2_output=[]
-        for i in range (0,num_trials):  #replace the 13 to 12 based on the file
+        for i in range (0,num_trials):
                 outputs = fft_helper(psds[(1*num_trials)+i],freqences[0]) 
                 o2_output.append(outputs)
-        '''
+        print('o2 output is ',len(o2_output))
 
-        '''
+        
         new_psds= []
-        new_psds.append(o1_output)
-        new_psds.append(o2_output)
-        '''
+        new_psds+=(o1_output)
+        new_psds+=(o2_output)
+        print('o1 and o2 ',len(new_psds))
 
         '''
         conf_matrices=[]
@@ -127,7 +128,7 @@ def fft_filter(eeg,samples):
         #print(conf_matrices)
         #print()
 
-        return(psds)
+        return(new_psds)
 
 
 def fft_helper(psd,freqs):
@@ -137,17 +138,15 @@ def fft_helper(psd,freqs):
                 index =1
                 for j in range(1,4):
                         while (True):
-                                if(index < 640):
-                                        if( round(freqs[index],1) == round( ((default_freqs[i])*j),1)):
-                                                #print(freqs[index] , " equal ", (default_freqs[i])*j)
-                                                break
-                                        else:
-                                                #print(freqs[index] , " not equal ", (default_freqs[i])*j)
-                                                index +=1
-                                else:
+                                if( round(freqs[index],1) == round( ((default_freqs[i])*j),1)):
+                                        #print(freqs[index] , " equal ", (default_freqs[i])*j)
                                         break
+                                else:
+                                        #print(freqs[index] , " not equal ", (default_freqs[i])*j)
+                                        index +=1
+
                         output.append(psd[index-1])                
-                        for i in range (1,3):
+                        for i in range (1,5):
                                 output.append(psd[index-i-1])
                                 output.append(psd[index+i-1])
                         index=0
@@ -181,11 +180,11 @@ O1_trials=[]
 O2_trials=[]
 
 i=0
-for filename in os.listdir('EEG-SSVEP-Experiment3/11'):
+for filename in os.listdir('EEG-SSVEP-Experiment3/3'):
 
     if filename.endswith(".mat") : 
         i+=1
-        curr_file = os.path.join('EEG-SSVEP-Experiment3/11', filename)
+        curr_file = os.path.join('EEG-SSVEP-Experiment3/3', filename)
         print(curr_file)
         data = sio.loadmat(curr_file)
         eeg = data['eeg']
@@ -204,8 +203,14 @@ for filename in os.listdir('EEG-SSVEP-Experiment3/11'):
         continue
     else:
         continue
+print(len(O1_trials))
+print(len(O2_trials))        
 X = O2_trials
 y =  [4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5, 4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3]*5
+
+
+#pca = PCA(n_components=30)
+#pricipalComponents = pca.fit_transform(np.concatenate((O1_trials,O2_trials),axis=1))
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state =0)
 
