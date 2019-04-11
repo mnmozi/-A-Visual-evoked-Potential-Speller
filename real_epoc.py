@@ -6,6 +6,9 @@ import csv
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import threading
+
+
 
 def save_csv(data,file_name):
     field_list = data.split(b',')
@@ -25,6 +28,28 @@ def Generate_sequence(i):
         sequence += str(rand_class)
     return (sequence)    
 
+
+
+
+def Start_unity(sequance,time_passed):
+    #sending data to the GUI
+    host, port = "127.0.0.1", 25002
+    BUFFER_SIZE =256
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((host,port))
+    s.send(sequance.encode("utf-8"))
+
+    while True:
+        data = s.recv(BUFFER_SIZE)
+        time_passed[0]= True
+        print(data)
+
+
+
+
+
 def Rtrain_routine(user_number):
     #---------------------check the user folder if exists or not then check the trial number---------------------------------
     dir_exists = os.path.isdir(user_number)
@@ -37,44 +62,40 @@ def Rtrain_routine(user_number):
         if file_exists:
             trials_count+=1
 
-    #--------------------------------------------------send the sequance to the GUI----------------------------------------
-    seq_number = 25
-    t_sequence = Generate_sequence(seq_number)
-    print (t_sequence)
-    #sending data to the GUI
-    host, port = "127.0.0.1", 25002
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sock.connect((host,port))
-        sock.sendall(t_sequence.encode("utf-8"))
-        sock.close() 
-    finally: 
-        sock.close()  
+
 
     #-------------------------------------intialise the files------------------------------------------------
     file_name = user_number+"/"+str(trials_count)+".csv"
     event_file_name = user_number+"/event"+str(trials_count)+".csv"
-    with open (file_name,'w',newline='') as f:
-        thewriter = csv.writer(f)
-        thewriter.writerow(['COUNTER', 'DATA-TYPE', 'AF3', 'F7', 'F3', 'FC5', 'T7', 'P7', '01', '02','P8' ,'T8' ,'FC6', 'F4', 'F8', 'AF4', 'DATALINE_1', 'DATALINE_2'])
 
-    with open (event_file_name,'w',newline='') as f:
-        thewriter = csv.writer(f) 
-        thewriter.writerow(['samples'])
 
-    #------------------------------connect to the headset and save the data to the correct csv file-----------------------------------------------
-    host, port = "127.0.0.1", 54123
-    BUFFER_SIZE =256
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.connect((host,port))
+    seq_number = 5
+    t_sequence = Generate_sequence(seq_number)
+    print (t_sequence)
 
+
+    eeg_stream=[]
+    event_data=[]
     buffer = b''
     remove_newline = False
     sample_counter = 0
-    start_trial= time.time()
-    start_time = time.time()
-    w_trail_time =((seq_number*2)+1)*5
+    
+    seconds_count=0
+    Unwanted_finished = False
+    time_passed = [False]
+    t = threading.Thread(target=Start_unity, args=(t_sequence,time_passed,))
+
+
+
+
+    #------------------------------connect to the headset and save the data to the correct csv file-----------------------------------------------
+    Hhost, Hport = "127.0.0.1", 54123
+    BUFFER_SIZE =256
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.connect((Hhost,Hport))
     s.send(b"\r\n")
+    start_trial= time.time()
+    w_trail_time =((seq_number*2)+1)*5        
     while time.time() - start_trial < w_trail_time:
         # We read a chunk
         data = s.recv(BUFFER_SIZE, socket.MSG_WAITALL)
@@ -96,22 +117,35 @@ def Rtrain_routine(user_number):
             n_buffer = msg_parts[-1][1:]
 
         # We interprete a whole message (begining from the previous step + the end
-        fullBool = save_csv(buffer + msg_parts[0], file_name)
-        if (fullBool):
+        #fullBool = save_csv(buffer + msg_parts[0], file_name)
+        full_data = (buffer + msg_parts[0])
+        
+        if ( Unwanted_finished and len(field_list) > 17  ):
+            field_list = full_data.split(b',')
+            eeg_stream.append(field_list)
+            seconds_count+=1
             sample_counter+=1
 
-        now_time = time.time()
+   
+        if ( Unwanted_finished == False ):
+            field_list = full_data.split(b',')
+            if (((str(field_list[0]).replace('b','')).replace('\'', '')) == "127") :
+                t.start()
+                Unwanted_finished= True
 
-        if (now_time - start_time >= 5 ):
-            start_time = time.time()
-            with open (event_file_name,'a',newline='') as f:
-                thewriter = csv.writer(f)
-                x = [sample_counter]
-                print(x)
-                thewriter.writerow(x)
+
+        if ( time_passed[0] ):
+            time_passed[0]= False
+            seconds_count = 0
+            event_data.append(sample_counter)
+            print(sample_counter)
         # We setup the buffer for next step
         buffer = n_buffer
-        
+
+
+    header = ["COUNTER", "DATA-TYPE", "AF3", "F7", "F3", "FC5", "T7", "P7", "01", "02","P8" ,"T8" ,"FC6", "F4", "F8", "AF4", "DATALINE_1", "DATALINE_2"]
+    pd.DataFrame(eeg_stream).to_csv(file_name, index=None , header=header) 
+    pd.DataFrame(event_data).to_csv(event_file_name, header=None, index=None)    
     s.close()
 
     
