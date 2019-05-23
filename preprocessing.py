@@ -7,12 +7,6 @@ from sklearn.metrics import confusion_matrix
 import os
 from sklearn.metrics import classification_report
 import seaborn as sns
-from sklearn.model_selection import train_test_split
-from sklearn.multiclass import OneVsOneClassifier
-from sklearn.multiclass import OutputCodeClassifier
-from sklearn.svm import LinearSVC
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.decomposition import PCA
 #get the samples between each start and end
 def event_codes(events):
         samples=[]
@@ -41,10 +35,11 @@ def preprocessing(eeg):
                 for j in range(num_of_samples_in_signals):
                         eeg[i][j]=eeg[i][j]-avg[j]
 
-        for i in range (6,8):
-                sm=sum(eeg[i])//len(eeg[i])
-                eeg[i] = [x - sm for x in eeg[i]]
 
+        for i in range (6,8):
+                sm=sum(eeg[i]) / len(eeg[i])
+                eeg[i] = [x - sm for x in eeg[i]]
+        
         return(eeg)
 
 
@@ -63,79 +58,101 @@ def fft_filter(eeg,samples):
                         number_of_samples = samples[j+1] - samples[j]
                         mid_point= number_of_samples//2
 
-                        print(samples[j] ,' to ', samples[j+1] ,' = ', number_of_samples)
+                        print(samples[j] ,' to ', samples[j+1] , " = ", number_of_samples)
 
                         signals.append( eeg[ i, samples[j]:(samples[j+1]) ])
                         Ts=np.fft.fft ( eeg[ i, samples[j]:(samples[j+1]) ])
                         freq= np.fft.fftfreq(number_of_samples,(1/128))
+
                         signals_fft.append(Ts)
                         freqences.append(freq)
-
                         psd = []
+                        
                         for x in range(1,mid_point):
                                 #mprint("at freq " , freq[x] ," and " ,  freq[-x])
-                                psd.append( ((np.abs(Ts[x])**2) + (np.abs(Ts[-x]**2))) )
+                                psd.append( (np.abs(Ts[x])**2) + (np.abs(Ts[-x]**2)) )
                         psds.append(psd)
 
         plt.figure(3)
         for signal in signals:
                 plt.plot(signal)
+        plt.title('Sample of The Signals')
+        plt.xlabel('Time')
+        plt.ylabel('Amplitude')
 
         plt.figure(4)
-        for signal in signals_fft:
-                plt.plot(signal)
+        #for signal in signals_fft:
+        plt.plot( freqences[0] ,signals_fft[0])
+        plt.title('Frequency Domain Representation')
+        plt.xlabel('FREQUENCY')
+        plt.ylabel('INTENSITY')
         #print(freqences)
-        print("............",len(freqences[0]))
-        print("............",len(psds[0]))
+        plt.figure(9)
+        plt.plot(psds[0])
 
-        
-        
-        
-        #this is signal O1 in index 6 almost all the values comes right
+
+        '''
+        #this is the sum of all the psd of all the 14 signals 
+        psds_sum = []
+        for i in range(0,12):   #change the 13 to 12 based on the file
+                period=[0] * 5
+                for j in range(0,14):  
+                        outputs = fft_helper(psds[(i+(j*12))],freqences[0])     #change the 13 to 12 based on the file
+                        period = [x + y for x, y in zip(period, outputs)]
+                psds_sum.append(period)
+        print(psds_sum)
+        for i in range (0,12):  #change the 13 to 12 based on the file
+                plt.figure(8+i)
+                plt.plot([1,2,3,4,5],psds_sum[i])
+        '''
+
+
+        #this is signal O1 in index 6 
         o1_output=[]
-        for i in range (0,num_trials): 
-                outputs = fft_helper(psds[(0*num_trials)+i],freqences[0]) 
+        for i in range (0,num_trials):  #replace the 13 to 12 based on the file
+                outputs = fft_helper(psds[(0*num_trials)+i],freqences[0]) #replace the 12 to 13 or 13 to 12  based on the file
                 o1_output.append(outputs)
-        print(len(psds))
-        print('o1 output is ',len(o1_output))
+        '''        
+        for i in range (0,12):
+                plt.figure(8+i)
+                plt.plot([1,2,3,4,5],o2_output[i])
+        '''
         
-
         
         #this is signal O2 in index 7 almost all the values comes right
         o2_output=[]
-        for i in range (0,num_trials):
-                outputs = fft_helper(psds[(1*num_trials)+i],freqences[0]) 
+        for i in range (0,num_trials):  #replace the 13 to 12 based on the file
+                outputs = fft_helper(psds[(1*num_trials)+i],freqences[0]) #replace the 12 to 13 or 13 to 12  based on the file
                 o2_output.append(outputs)
-        print('o2 output is ',len(o2_output))
-
-        
-        new_psds= []
-        new_psds+=(o1_output)
-        new_psds+=(o2_output)
-        print('o1 and o2 ',len(new_psds))
-
+        '''    
+        for i in range (0,num_trials):
+                plt.figure(8+i)
+                plt.plot([1,2,3,4,5],o2_output[i])
         '''
+        print("O1")
         conf_matrices=[]
         O1_labels = dominant_freq( o1_output,num_trials)
         O1_conf = conf_matrix(O1_labels,num_trials)
         conf_matrices.append(O1_conf)
-
+        print("O2")
         O2_labels = dominant_freq( o2_output,num_trials)
         O2_conf = conf_matrix(O2_labels,num_trials)
         conf_matrices.append(O2_conf)
-        '''
+        
 
         #print(conf_matrices)
         #print()
 
-        return(new_psds)
+        return(conf_matrices)
 
 
 def fft_helper(psd,freqs):
-        default_freqs= [12.0 , 10.0 , 8.6, 7.4 , 6.6]
+        default_freqs= [12.0 , 10.0 , 8.6, 7.6 , 6.6]
         output=[]
+        #print(freqs)
         for i in range(0,5):
-                index =1
+                sum_psd=0
+                index =0
                 for j in range(1,4):
                         while (True):
                                 if( round(freqs[index],1) == round( ((default_freqs[i])*j),1)):
@@ -144,12 +161,14 @@ def fft_helper(psd,freqs):
                                 else:
                                         #print(freqs[index] , " not equal ", (default_freqs[i])*j)
                                         index +=1
-
-                        output.append(psd[index-1])                
-                        for i in range (1,5):
-                                output.append(psd[index-i-1])
-                                output.append(psd[index+i-1])
+                                             
+                        sum_psd = sum_psd + max (psd[index-3],psd[index-2],psd[index-1],psd[index],psd[index+1])
+                        #print(psd[index-1], " of frequencey ", (default_freqs[i])*j)
                         index=0
+
+                output.append(sum_psd)
+                print(sum_psd)
+        print(output)        
         return (output)
 
 
@@ -158,9 +177,9 @@ def dominant_freq(pow_freq,num_trials):
         for i in range(num_trials):
                 curr_trial = pow_freq[i]
                 dominant_label = curr_trial.index(max(curr_trial)) + 1
+                print(dominant_label , " => ", curr_trial)
                 trial_output.append(dominant_label)
         return (trial_output)        
-
 
 
 def conf_matrix(y_pred,num_trials):
@@ -176,61 +195,67 @@ def conf_matrix(y_pred,num_trials):
 
 
 
-O1_trials=[]
-O2_trials=[]
-
+conf_matrices=[[[0,0,0,0,0]]*5,[[0,0,0,0,0]]*5]
+print(conf_matrices)
 i=0
-for filename in os.listdir('EEG-SSVEP-Experiment3/1'):
+for filename in os.listdir('EEG-SSVEP-Experiment3/3'):
 
     if filename.endswith(".mat") : 
         i+=1
-        curr_file = os.path.join('EEG-SSVEP-Experiment3/1', filename)
+        curr_file = os.path.join('EEG-SSVEP-Experiment3/3', filename)
         print(curr_file)
         data = sio.loadmat(curr_file)
         eeg = data['eeg']
         events = data['events']
 
         signals_num = len(eeg)-1
+        if (i == 1 ):
+                plt.figure(1)
+                #for signal in signals_fft:
+                
 
+                plt.figure(1)
+                for x in range(signals_num):
+                        plt.plot(eeg[x])
+                plt.title('Trial Before CAR filtering')
+                plt.xlabel('Time')
+                plt.ylabel('Amplitude')
         samples = event_codes(events)
         print("effective samples",len(samples))
-        trials= len(samples)//2
+
         new_eeg = preprocessing(eeg)
+        if (i == 1 ):
+                plt.figure(1)
+                #for signal in signals_fft:
+                
+                plt.figure(2)
+                #for signal in signals_fft:
+                plt.figure(2)
+                for x in range(signals_num):
+                        plt.plot( new_eeg[x])
+                plt.title('Trial After CAR filtering')
+                plt.xlabel('Time')
+                plt.ylabel('Amplitude')
+
         output = fft_filter(new_eeg,samples)
-        O1_trials+=output[0:trials]
-        O2_trials+=output[trials:]
+        conf_matrices[0] = conf_matrices[0] + output[0]
+        conf_matrices[1] = conf_matrices[1] + output[1]
+        print(conf_matrices)
 
         continue
     else:
         continue
-print(len(O1_trials))
-print(len(O2_trials))        
-X = O2_trials
-y =  [4, 2, 3, 5, 1, 2, 5, 4, 2, 3, 1, 5, 4, 3, 2, 4, 1, 2, 5, 3, 4, 1, 3, 1, 3]*5
-
-
-#pca = PCA(n_components=30)
-#pricipalComponents = pca.fit_transform(np.concatenate((O1_trials,O2_trials),axis=1))
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state =0)
-
-print (len(X_test))
-print(len(O1_trials))
-print(len(O2_trials))
-
-classifier = RandomForestClassifier(n_estimators=1000,n_jobs=2, random_state=0)
-
-classifier.fit(X_train,y_train)
-y_predict = classifier.predict(X_test)
-print(y_test)
-print(y_predict)
 
 plt.figure(6)
-sns.heatmap(confusion_matrix(y_test, y_predict),yticklabels=[1,2,3,4,5],xticklabels=[1,2,3,4,5], annot= True, fmt='d')
-plt.title('Classification Approach O2')
+sns.heatmap(conf_matrices[0], yticklabels=[1,2,3,4,5], xticklabels=[1,2,3,4,5], annot= True, fmt='d')
+plt.title('Window Approach O1')
 plt.xlabel('Actual Class')
 plt.ylabel('Predicted Class')
 
-print(classifier.predict_proba(X_test)[0:10])
+plt.figure(5)
+sns.heatmap(conf_matrices[1],yticklabels=[1,2,3,4,5],xticklabels=[1,2,3,4,5], annot= True, fmt='d')
+#yticklabels=[1,2,3,4,5],xticklabels=[1,2,3,4,5]
+print (i)
+
 
 plt.show()

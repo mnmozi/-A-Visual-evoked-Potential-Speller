@@ -15,8 +15,6 @@ from sklearn.metrics import confusion_matrix
 import os
 from sklearn.metrics import classification_report
 import seaborn as sns
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
 
 
 def save_csv(data,file_name):
@@ -44,7 +42,7 @@ def Generate_sequence(i):
 
 def NStart_unity(sequance,start,whatNow): #whatnow true = send to arrow of the sequance else = send to open all ............ start is the bool to start the while
     #sending data to the GUI
-    host, port = "127.0.0.1", 25002
+    host, port = "127.0.0.1", 54000
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -96,7 +94,7 @@ def Rtrain_routine(user_number):
 
 
     seq_number = 25
-    t_sequence = "1534212345312451425352413"    #Generate_sequence(seq_number)
+    t_sequence = "5555555555555555555555555"    #Generate_sequence(seq_number)
     print (t_sequence)
 
 
@@ -218,7 +216,6 @@ def preprocessing(eeg):
 
 
 def fft_filter(eeg,samples):
-    
     #filter O1 and O2
     num_eff_samples=(len(samples))
     num_trials= num_eff_samples//2
@@ -246,7 +243,7 @@ def fft_filter(eeg,samples):
             for x in range(1,mid_point):
                     #mprint("at freq " , freq[x] ," and " ,  freq[-x])
                     psd.append( (np.abs(Ts[x])**2) + (np.abs(Ts[-x]**2)) )
-            psds.append(psd[40:240])
+            psds.append(psd)
 
     plt.figure(3)
     for signal in signals:
@@ -255,48 +252,87 @@ def fft_filter(eeg,samples):
     plt.figure(4)
     for signal in signals_fft:
             plt.plot(signal)
+    #print(freqences)
+
+    plt.figure(9)
+    plt.plot(psds[0])
 
 
-    #print("............",len(freqences[0]))
-    #print("............",len(psds[0]))
 
-    ''' # in this part i get the frequencies and harmonics and the values around it without the rest if u used is remove the boundaries in line 248
-    #this is signal O1 in index 6 almost all the values comes right
-    
+    #this is signal O1 in index 6 
+
     o1_output=[]
     for i in range (0,num_trials): 
             outputs = fft_helper(psds[(0*num_trials)+i],freqences[0]) 
             o1_output.append(outputs)
-    print(len(psds))
-    print('o1 output is ',len(o1_output))
-    
 
+    '''       
+    for i in range (0,25):
+            plt.figure(8+i)
+            plt.plot([1,2,3,4,5],o1_output[i])
+    '''
     
-    #this is signal O2 in index 7 almost all the values comes right
+    
+    #this is signal O2 in index 7
+
     o2_output=[]
-    for i in range (0,num_trials):
+    for i in range (0,num_trials): 
             outputs = fft_helper(psds[(1*num_trials)+i],freqences[0]) 
             o2_output.append(outputs)
-    print('o2 output is ',len(o2_output))
 
-    
-    new_psds= []
-    new_psds+=(o1_output)
-    new_psds+=(o2_output)
-    print('o1 and o2 ',len(new_psds))
+    '''    
+    for i in range (0,num_trials):
+            plt.figure(8+i)
+            plt.plot([1,2,3,4,5],o2_output[i])
     '''
 
+    print("O1")
+    conf_matrices=[]
+    O1_labels = dominant_freq( o1_output,num_trials)
+    O1_conf = conf_matrix(O1_labels)
+    conf_matrices.append(O1_conf)
+
+    print("O2")
+    O2_labels = dominant_freq( o2_output,num_trials)
+    O2_conf = conf_matrix(O2_labels)
+    conf_matrices.append(O2_conf)
+    
 
     #print(conf_matrices)
     #print()
 
-    return(psds)
+    return(conf_matrices)
+
+def dominant_freq(pow_freq,num_trials):
+    trial_output=[]
+    x = [1,2,2,5,1,4,4,1,5,5,2,1,2,1,4,4,5,4,1,2,5,1,4,5,2]
+    correctCount = 0
+    for i in range(num_trials):
+            curr_trial = pow_freq[i]
+            dominant_label = curr_trial.index(max(curr_trial)) + 1
+            print(curr_trial ,"max is ", dominant_label ,"should be => ", x[i])
+            if dominant_label == x[i]:
+                correctCount+=1
+            trial_output.append(dominant_label)
+    print (correctCount)        
+    return (trial_output)        
+
+
+def conf_matrix(y_pred):
+
+    y_true=[1,2,2,5,1,4,4,1,5,5,2,1,2,1,4,4,5,4,1,2,5,1,4,5,2]
+    return (confusion_matrix(y_true, y_pred))
+    
+
+
 
 def fft_helper(psd,freqs):
-        default_freqs= [12.0 , 10.0 , 8.6, 7.4 , 6.6]
+        default_freqs= [12.0 , 10.0 , 8.6, 7.6 , 6.6]
         output=[]
+        #print(freqs)
         for i in range(0,5):
-                index =1
+                sum_psd=0
+                index =0
                 for j in range(1,4):
                         while (True):
                                 if( round(freqs[index],1) == round( ((default_freqs[i])*j),1)):
@@ -306,26 +342,23 @@ def fft_helper(psd,freqs):
                                         #print(freqs[index] , " not equal ", (default_freqs[i])*j)
                                         index +=1
 
-                        output.append(psd[index-1])                
-                        for i in range (1,5):
-                                output.append(psd[index-i-1])
-                                output.append(psd[index+i-1])
+                        sum_psd = sum_psd + max (psd[index-3],psd[index-2],psd[index-1],psd[index],psd[index+1])
+                        #print(psd[index-1], " of frequencey ", (default_freqs[i])*j)
                         index=0
+
+                output.append(sum_psd)
+        #print(output, output.index(max(output)) + 1)        
         return (output)
 
 
 def Rtest_routine(user_number):
+
     dir_exists = os.path.isdir(user_number)
     if not dir_exists:
         return ("There is No User with this name")
 
-    trials_count=trials_in_Path(user_number)
-
-    O1_trials=[]
-    O2_trials=[]
-
-
-    for i in range (0,trials_count): #open trial trial 
+    conf_matrices=[[[0,0,0]]*3,[[0,0,0]]*3]
+    for i in range (0,1): #open trial trial 
         file_name = user_number+"/"+str(i)+".csv"
         event_file_name = user_number+"/event_"+str(i)+".csv"
         eeg = pd.read_csv(file_name)
@@ -345,44 +378,23 @@ def Rtest_routine(user_number):
         plt.figure(40)
         for ee in new_eeg:
             plt.plot(ee)
-            
-        trials= len(events)//2
+
         output = fft_filter(new_eeg,events)
-        O1_trials+=output[0:trials]
-        O2_trials+=output[trials:]
+        conf_matrices[0] = conf_matrices[0] + output[0]
+        conf_matrices[1] = conf_matrices[1] + output[1]
+        print(conf_matrices)
 
 
- 
-    X = O2_trials
-    y =  [1,5,3,4,2,1,2,3,4,5,3,1,2,4,5,1,4,2,5,3,5,2,4,1,3]*(trials_count-0)
-
-
-    #pca = PCA(n_components=30)
-    #pricipalComponents = pca.fit_transform(np.concatenate((O1_trials,O2_trials),axis=1))
-
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state =0)
-
-    print (len(X_test))
-    print(len(O1_trials))
-    print(len(O2_trials))
-
-    classifier = RandomForestClassifier(n_estimators=1000,n_jobs=2, random_state=0)
-
-    classifier.fit(X_train,y_train)
-    y_predict = classifier.predict(X_test)
-    print(y_test)
-    print(y_predict)
 
     plt.figure(6)
-    sns.heatmap(confusion_matrix(y_test, y_predict), annot= True, fmt='d')
-
-
-    #print(classifier.predict_proba(X_test)[0:10])
-
+    sns.heatmap(conf_matrices[0], annot= True, fmt='d')
+    plt.figure(5)
+    sns.heatmap(conf_matrices[1], annot= True, fmt='d')
 
 
 
     plt.show()
+    #print (new_eeg)
 
 
 #get input to decide what to do Train or Test 
